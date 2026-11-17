@@ -1004,7 +1004,7 @@ build_deb(){
     echo "bash +x \$tfn -f \"PRODUCT_FAMILY_PS\" -v \"${VERSION}-${RELEASE}-${DEB_RELEASE}\" -d \"PACKAGE\" &>/dev/null || :" >> percona-server-server"${postfix}".postinst
     echo "chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-server"${postfix}".postinst
     echo "chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-server"${postfix}".postinst
-    echo "rm -rf \$tfn" >> percona-server-server"${postfix}".postinst
+    echo "rm -rf \"\$(dirname \"\$tfn\")\"" >> percona-server-server"${postfix}".postinst
     echo "exit 0" >> percona-server-server"${postfix}".postinst
     rm -f call-home.sh
     cd ../

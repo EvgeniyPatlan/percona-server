@@ -838,7 +838,7 @@ bash $tfn -f "PRODUCT_FAMILY_PS" -v %{mysql_version}-%{percona_server_version}-%
 chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :
 chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :
 %endif
-rm -f $tfn
+rm -rf "$(dirname "$tfn")"
 
 echo "Percona Server is distributed with several useful UDF (User Defined Function) from Percona Toolkit."
 echo "Run the following commands to create these functions:"
