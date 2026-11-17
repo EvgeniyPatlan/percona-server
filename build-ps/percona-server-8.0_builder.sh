@@ -105,9 +105,27 @@ add_percona_yum_repo(){
     return
 }
 
+fetch_verified() {
+    local url="$1"
+    local sha256="$2"
+    local out="${3:-$(basename "$1")}"
+    curl -fsSL --retry 3 --proto '=https' --proto-redir '=https' -o "${out}" "${url}" || { echo "ERROR: download failed: ${url}" >&2; exit 1; }
+    echo "${sha256}  ${out}" | sha256sum -c - || { echo "ERROR: checksum mismatch: ${url}" >&2; exit 1; }
+}
+
+log_build_env() {
+    echo "=== Installed packages in build environment ==="
+    if [ -x /usr/bin/dpkg-query ]; then
+        dpkg-query -W -f='${Package}:${Architecture}=${Version}\n' | sort
+    else
+        rpm -qa --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort
+    fi
+    echo "=== End of installed packages ==="
+}
+
 switch_to_vault_repo() {
     sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-    sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+    sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=https://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
     sed -i 's/enabled=0/enabled=1/g' /etc/yum.repos.d/CentOS-Linux-PowerTools.repo
 }
 
@@ -386,11 +404,11 @@ get_v8(){
     DIST="$(lsb_release -sc)"
     cd ${WORKDIR}
     if [ x"$ARCH" = "xx86_64" ]; then
-        wget -q --no-check-certificate https://downloads.percona.com/downloads/packaging/v8_12.9.202.22-glibc2.31.tar.gz
+        fetch_verified https://downloads.percona.com/downloads/packaging/v8_12.9.202.22-glibc2.31.tar.gz 35658ef3f61956f77715a64e59765237443fa4cff8f9d38f4100fdebb4200d92
         tar -xzf v8_12.9.202.22-glibc2.31.tar.gz
         rm -rf v8_12.9.202.22-glibc2.31.tar.gz
     else
-        wget -q --no-check-certificate https://downloads.percona.com/downloads/packaging/v8_12.9.202.22-arm64.tar.gz
+        fetch_verified https://downloads.percona.com/downloads/packaging/v8_12.9.202.22-arm64.tar.gz 1d7621395fdcdf0da7cf00e8b4629ee3deff60d6524390d212f52f0744640cfd
         tar -xzf v8_12.9.202.22-arm64.tar.gz
         rm -rf v8_12.9.202.22-arm64.tar.gz
     fi
@@ -418,7 +436,6 @@ install_deps() {
             if [ "${RHEL}" -lt 9 ]; then
               #  add_percona_yum_repo
                 yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
-                percona-release enable tools testing
               #  percona-release enable tools experimental
             fi
         fi
@@ -522,7 +539,8 @@ install_deps() {
         if [ "x$RHEL" = "x2023" ]; then
             yum -y install libtirpc-devel libatomic annobin-annocheck annobin-plugin-gcc
             yum -y install pip mariadb105-devel python3-devel
-            pip install mysqlclient
+            echo "mysqlclient==2.2.7 --hash=sha256:24ae22b59416d5fcce7e99c9d37548350b4565baac82f95e149cac6ce4163845" > /tmp/mysqlclient-req.txt
+            pip install --require-hashes --no-deps -r /tmp/mysqlclient-req.txt
         fi
     else
         apt-get update
@@ -530,7 +548,6 @@ install_deps() {
         apt-get -y install dirmngr || true
         apt-get -y install gnupg2 lsb-release wget git curl
         wget https://repo.percona.com/apt/percona-release_latest.$(lsb_release -sc)_all.deb && dpkg -i percona-release_latest.$(lsb_release -sc)_all.deb
-        percona-release enable tools testing
         export DEBIAN_FRONTEND="noninteractive"
         export DIST="$(lsb_release -sc)"
             until apt-get update; do
@@ -712,19 +729,19 @@ build_mecab_lib(){
     ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
     MECAB_TARBAL="mecab-0.996.tar.gz"
     MECAB_LINK="https://downloads.percona.com/downloads/packaging/mecab/${MECAB_TARBAL}"
+    MECAB_SHA256="e073325783135b72e666145c781bb48fada583d5224fb2490fb6c1403ba69c59"
     MECAB_DIR="${WORKDIR}/${MECAB_TARBAL%.tar.gz}"
     MECAB_INSTALL_DIR="${WORKDIR}/mecab-install"
     rm -f ${MECAB_TARBAL}
     rm -rf ${MECAB_DIR}
     rm -rf ${MECAB_INSTALL_DIR}
     mkdir ${MECAB_INSTALL_DIR}
-    wget --no-check-certificate ${MECAB_LINK}
+    fetch_verified "${MECAB_LINK}" "${MECAB_SHA256}"
     tar xf ${MECAB_TARBAL}
     if [ x"$ARCH" = "xaarch64" ]; then
-        git clone git://git.savannah.gnu.org/config.git
-        unalias cp
-        cp config/config.guess ${MECAB_DIR}
-        cp config/config.sub ${MECAB_DIR}
+        # mecab-0.996 ships config.guess/config.sub that predate aarch64
+        AUTOMAKE_LIBDIR="$(automake --print-libdir)"
+        command cp -f "${AUTOMAKE_LIBDIR}/config.guess" "${AUTOMAKE_LIBDIR}/config.sub" "${MECAB_DIR}"
     fi
     cd ${MECAB_DIR}
     ./configure --with-pic --prefix=/usr
@@ -743,10 +760,11 @@ build_mecab_dict(){
     ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
     MECAB_IPADIC_TARBAL="mecab-ipadic-2.7.0-20070801.tar.gz"
     MECAB_IPADIC_LINK="https://downloads.percona.com/downloads/packaging/mecab/${MECAB_IPADIC_TARBAL}"
+    MECAB_IPADIC_SHA256="b62f527d881c504576baed9c6ef6561554658b175ce6ae0096a60307e49e3523"
     MECAB_IPADIC_DIR="${WORKDIR}/${MECAB_IPADIC_TARBAL%.tar.gz}"
     rm -f ${MECAB_IPADIC_TARBAL}
     rm -rf ${MECAB_IPADIC_DIR}
-    wget --no-check-certificate ${MECAB_IPADIC_LINK}
+    fetch_verified "${MECAB_IPADIC_LINK}" "${MECAB_IPADIC_SHA256}"
     tar xf ${MECAB_IPADIC_TARBAL}
     cd ${MECAB_IPADIC_DIR}
   # these two lines should be removed if proper packages are created and used for builds
@@ -770,6 +788,7 @@ build_rpm(){
         echo "RPM will not be created"
         return;
     fi
+    log_build_env
     if [ "x$OS" = "xdeb" ]
     then
         echo "It is not possible to build rpm here"
@@ -928,6 +947,7 @@ build_deb(){
         echo "source deb package will not be created"
         return;
     fi
+    log_build_env
     if [ "x$OS" = "xrpm" ]
     then
         echo "It is not possible to build source deb here"
@@ -1012,6 +1032,7 @@ build_tarball(){
         echo "Binary tarball will not be created"
         return;
     fi
+    log_build_env
     get_tar "source_tarball"
     cd $WORKDIR
     TARFILE=$(basename $(find . -name 'percona-server-*.tar.gz' | sort | tail -n1))
@@ -1059,7 +1080,7 @@ build_tarball(){
     git clone https://github.com/jemalloc/jemalloc
     (
     cd jemalloc
-    git checkout 3.6.0
+    git checkout --quiet 46c0af68bd248b04df75e4f92d5fb804c3d75340  # 3.6.0
     bash autogen.sh
     )
     #

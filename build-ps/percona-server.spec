@@ -127,6 +127,7 @@
 %global percona_compatver     91.0
 %global compatlib             18
 %global compatsrc             https://downloads.percona.com/downloads/Percona-Server-5.6/Percona-Server-%{compatver}-%{percona_compatver}/binary/redhat/7/x86_64/Percona-Server-shared-56-%{compatver}-rel%{percona_compatver}.1.el7.x86_64.rpm
+%global compatsha256          0072f695ef65ddcc3038ff36092cafed048f768878f4b640d3def2b0b732f86e
 %endif
 
 %if 0%{?rhel} == 6
@@ -135,6 +136,7 @@
 %global percona_compatver     14.12
 %global compatlib             16
 %global compatsrc             https://downloads.percona.com/downloads/Percona-Server-5.1/Percona-Server-5.1.73-rel14.12/RPM/rhel6/x86_64/Percona-Server-shared-51-5.1.73-rel14.12.624.rhel6.x86_64.rpm
+%global compatsha256          bce6d5f2981d3850fd6f946636ce998a5a6c9b158274b1711be40026e3aa7538
 %endif
 
 # multiarch
@@ -552,7 +554,8 @@ fi
   rm -rf percona-compatlib
   mkdir percona-compatlib
   pushd percona-compatlib
-  wget --no-check-certificate %{compatsrc}
+  wget %{compatsrc}
+  echo "%{compatsha256}  $(basename %{compatsrc})" | sha256sum -c -
 %if 0%{?rhel} > 6
   rpm2cpio Percona-Server-shared-%{compat_prefix}-%{compatver}-rel%{percona_compatver}.1.el7.x86_64.rpm | cpio --extract --make-directories --verbose
 %else

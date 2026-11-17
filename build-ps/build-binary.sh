@@ -233,6 +233,11 @@ fi
 export COMMON_FLAGS="$COMMON_FLAGS -DPERCONA_INNODB_VERSION=$PERCONA_SERVER_VERSION"
 export CFLAGS="$COMMON_FLAGS ${CFLAGS:-}"
 export CXXFLAGS="$COMMON_FLAGS ${CXXFLAGS:-}"
+if ${CC:-cc} -ffile-prefix-map=/a=/b -E -x c /dev/null >/dev/null 2>&1; then
+    PREFIX_MAP_FLAGS="-ffile-prefix-map=${SOURCEDIR}=. -ffile-prefix-map=${WORKDIR_ABS}=."
+    export CFLAGS="${CFLAGS} ${PREFIX_MAP_FLAGS}"
+    export CXXFLAGS="${CXXFLAGS} ${PREFIX_MAP_FLAGS}"
+fi
 #
 export MAKE_JFLAG="${MAKE_JFLAG:--j$PROCESSORS}"
 #
@@ -415,6 +420,22 @@ CMAKE_COMMON_FLAGS=(
 
     LIBPATH=""
 
+    function record_bundled_lib {
+        local src=$1
+        local owner=""
+        if command -v dpkg-query >/dev/null 2>&1; then
+            local pkg
+            pkg=$(dpkg -S "${src}" 2>/dev/null || dpkg -S "${src#/usr}" 2>/dev/null || true)
+            pkg=$(echo "${pkg}" | head -n1 | cut -d' ' -f1 | sed -e 's/[:,]$//')
+            if [ -n "${pkg}" ]; then
+                owner=$(dpkg-query -W -f='${Package}:${Architecture}=${Version}' "${pkg}" 2>/dev/null || true)
+            fi
+        elif command -v rpm >/dev/null 2>&1; then
+            owner=$(rpm -qf --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}' "${src}" 2>/dev/null || true)
+        fi
+        printf '%s\t%s\t%s\t%s\n' "$(basename "${src}")" "$(sha256sum "${src}" | cut -d' ' -f1)" "${owner:-unknown}" "${src}" >> lib/private/BUNDLED-LIBS.txt
+    }
+
     function gather_libs {
         local elf_path=$1
         for lib in ${LIBLIST}; do
@@ -429,6 +450,7 @@ CMAKE_COMMON_FLAGS=(
                     
                         echo "Copying lib ${lib_realpath_basename}"
                         cp ${lib_realpath} lib/private
+                        record_bundled_lib "${lib_realpath}"
 
                         echo "Symlinking lib from ${lib_realpath_basename} to ${lib_without_version_suffix}"
                         cd lib/
