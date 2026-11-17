@@ -838,7 +838,7 @@ cp %SOURCE999 /tmp/ 2>/dev/null ||
 bash $tfn -f "PRODUCT_FAMILY_PS" -v %{mysql_version}-%{percona_server_version}-%{rpm_release} -d "PACKAGE" &>/dev/null || :
 chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :
 chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :
-rm -f $tfn
+rm -rf "$(dirname "$tfn")"
 
 echo "Percona Server is distributed with several useful UDF (User Defined Function) from Percona Toolkit."
 echo "Run the following command to install these functions (fnv_64, fnv1a_64, murmur_hash):"
