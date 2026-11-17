@@ -31,7 +31,9 @@ if [ "$1" ]
 fi
 echo "Build v8. Version $tag"
 
-GIT_SSL_NO_VERIFY=true git clone https://chromium.googlesource.com/chromium/tools/depot_tools
+git clone https://chromium.googlesource.com/chromium/tools/depot_tools
+git -C depot_tools checkout --quiet ec77017fb3e090ff02bffb9c6980ebcdd3006ddc
+export DEPOT_TOOLS_UPDATE=0
 export PATH=$(pwd)/depot_tools:$PATH
 yes | fetch --force v8
 cd v8

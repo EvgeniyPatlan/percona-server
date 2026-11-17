@@ -107,6 +107,9 @@
 %global percona_compatver     91.0
 %global compatlib             18
 %global compatsrc             https://downloads.percona.com/downloads/Percona-Server-5.6/Percona-Server-%{compatver}-%{percona_compatver}/binary/redhat/7/%{_arch}/Percona-Server-shared-56-%{compatver}-rel%{percona_compatver}.1.el7.%{_arch}.rpm
+%ifarch x86_64
+%global compatsha256          0072f695ef65ddcc3038ff36092cafed048f768878f4b640d3def2b0b732f86e
+%endif
 %endif
 
 %if 0%{?rhel} == 8 || 0%{?rhel} == 9
@@ -114,6 +117,12 @@
 %global percona_compatver     29
 %global compatlib             21
 %global compatsrc             https://repo.percona.com/ps-80/yum/release/8/RPMS/%{_arch}/percona-server-shared-%{compatver}-%{percona_compatver}.1.el8.%{_arch}.rpm
+%ifarch x86_64
+%global compatsha256          8b0d67581d82635e008e8938eb0a562484eedebbcb1a7517c1135df2c563902e
+%endif
+%ifarch aarch64
+%global compatsha256          eb418d721ec3bc8015c373caa46bda6a3a268263d62a340fcfb370bebd30d3fd
+%endif
 %endif
 
 
@@ -539,7 +548,8 @@ fi
   rm -rf percona-compatlib
   mkdir percona-compatlib
   pushd percona-compatlib
-  wget --no-check-certificate %{compatsrc}
+  wget %{compatsrc}
+  echo "%{compatsha256}  $(basename %{compatsrc})" | sha256sum -c -
   timeout=10
   while [ $timeout -gt 0 ]; do
       if [ -s "$(basename %{compatsrc})" ]; then
@@ -559,7 +569,8 @@ fi
   rm -rf percona-compatlib
   mkdir percona-compatlib
   pushd percona-compatlib
-  wget --no-check-certificate %{compatsrc}
+  wget %{compatsrc}
+  echo "%{compatsha256}  $(basename %{compatsrc})" | sha256sum -c -
   timeout=10
   while [ $timeout -gt 0 ]; do
       if [ -s "$(basename %{compatsrc})" ]; then
